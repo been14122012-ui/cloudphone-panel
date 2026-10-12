@@ -1,0 +1,148 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BeenCloud - Cloud Phone</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: Arial, sans-serif;
+      background: #0b1020; color: #f8fafc;
+    }
+    header {
+      padding: 22px; background: #121a30;
+      border-bottom: 1px solid #26334f;
+    }
+    header h1 { margin: 0; color: #70e1c1; }
+    main { max-width: 900px; margin: auto; padding: 20px; }
+    .card {
+      background: #121a30; padding: 20px;
+      margin: 16px 0; border-radius: 14px;
+      border: 1px solid #26334f;
+    }
+    input, button {
+      width: 100%; padding: 12px; margin-top: 10px;
+      border-radius: 8px; font-size: 16px;
+    }
+    input { background: #0b1020; color: white; border: 1px solid #46516b; }
+    button {
+      border: 0; background: #70e1c1; color: #07130f;
+      font-weight: bold; cursor: pointer;
+    }
+    .muted { color: #a8b4cc; }
+    #status { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>☁️ BeenCloud</h1>
+    <p class="muted">Cloud Phone Management</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Đăng nhập / Đăng ký</h2>
+      <input id="email" type="email" placeholder="Email của bạn">
+      <input id="password" type="password" placeholder="Mật khẩu (ít nhất 6 ký tự)">
+      <button id="signup">Tạo tài khoản</button>
+      <button id="login">Đăng nhập</button>
+      <button id="logout">Đăng xuất</button>
+      <p id="status" class="muted">Chưa kết nối Supabase.</p>
+    </section>
+
+    <section class="card">
+      <h2>Danh sách Cloud Phone</h2>
+      <button id="refresh">Tải danh sách máy</button>
+      <div id="devices" class="muted">Đăng nhập để xem danh sách.</div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { createClient } from
+      'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = 'https://fwyvcpwtuxunygmoihqq.supabase.co/rest/v1/';
+    const SUPABASE_KEY = 'sb_publishable_SsQnLcDuDq8r0nfOZPKk-A_4MqRBa3n';
+
+    const status = document.getElementById('status');
+    const devices = document.getElementById('devices');
+
+    if (SUPABASE_URL.startsWith('https://') &&
+        SUPABASE_KEY.startsWith('sb_publishable_')) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      document.getElementById('signup').onclick = async () => {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const { error } = await supabase.auth.signUp({
+          email, password
+        });
+        status.textContent = error
+          ? error.message
+          : 'Đã gửi yêu cầu đăng ký. Kiểm tra email nếu được yêu cầu xác minh.';
+      };
+
+      document.getElementById('login').onclick = async () => {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const { error } = await supabase.auth.signInWithPassword({
+          email, password
+        });
+        status.textContent = error ? error.message : 'Đăng nhập thành công.';
+        if (!error) loadDevices();
+      };
+
+      document.getElementById('logout').onclick = async () => {
+        await supabase.auth.signOut();
+        status.textContent = 'Đã đăng xuất.';
+        devices.textContent = 'Đăng nhập để xem danh sách.';
+      };
+
+      async function loadDevices() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          devices.textContent = 'Vui lòng đăng nhập.';
+          return;
+        }
+        const { data, error } = await supabase
+          .from('devices')
+          .select('id,name,android_version,status')
+          .order('id');
+
+        devices.replaceChildren();
+        if (error) {
+          devices.textContent = error.message;
+          return;
+        }
+        if (!data.length) {
+          devices.textContent = 'Chưa có máy nào được thêm.';
+          return;
+        }
+        data.forEach(device => {
+          const item = document.createElement('div');
+          item.className = 'card';
+          const title = document.createElement('strong');
+          title.textContent = device.name;
+          const detail = document.createElement('p');
+          detail.textContent =
+            `Android: ${device.android_version || 'Chưa rõ'} · Trạng thái: ${device.status}`;
+          item.append(title, detail);
+          devices.append(item);
+        });
+      }
+
+      document.getElementById('refresh').onclick = loadDevices;
+      supabase.auth.onAuthStateChange((_event, session) => {
+        status.textContent = session
+          ? 'Đã đăng nhập: ' + session.user.email
+          : 'Chưa đăng nhập.';
+      });
+    } else {
+      status.textContent =
+        'Cần thay hai giá trị cấu hình Supabase trước khi sử dụng.';
+    }
+  </script>
+</body>
+</html>
